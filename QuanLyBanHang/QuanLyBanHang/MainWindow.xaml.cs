@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace QuanLyBanHang
@@ -52,6 +53,7 @@ namespace QuanLyBanHang
 
             PhanQuyen(); LoadDuLieuKho(); LoadCombos(); LoadLichSuBanHang(); InitThongKeCombos();
             if (currentUserRole == "Admin") LoadUsers(); dgGioHang.ItemsSource = gioHangList; dgPhieuNhap.ItemsSource = phieuNhapList;
+
 
             // THÊM DÒNG NÀY VÀO ĐỂ CHẠY BACKUP KHI MỞ APP
             ThucHienAutoBackup();
@@ -227,14 +229,126 @@ namespace QuanLyBanHang
         // ==============================================================
         // BÁN HÀNG VÀ XỬ LÝ GIỎ HÀNG 
         // ==============================================================
-        private void btnMoTaoDonBan_Click(object sender, RoutedEventArgs e) { gioHangList.Clear(); TinhTongDonHang(); txtSLBan.Text = ""; txtThanhTien.Text = ""; txtDonGiaBan.Text = "0"; txtDonViBan.Text = ""; cmbLoaiBan.SelectedIndex = 0; dpNgayBan.SelectedDate = DateTime.Now; OverlayBanHang.Visibility = Visibility.Visible; }
-        private void btnHuyDonBan_Click(object sender, RoutedEventArgs e) { if (gioHangList.Count > 0 && MessageBox.Show("Bạn có chắc chắn muốn hủy giỏ hàng đang tạo?", "Cảnh báo", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.No) return; OverlayBanHang.Visibility = Visibility.Collapsed; }
-        private void cmbLoaiBan_SelectionChanged(object sender, SelectionChangedEventArgs e) { try { if (cmbLoaiBan.SelectedItem is DataRowView rv) { LoadProductsByCategoryBan(rv["CategoryName"]?.ToString() ?? ""); } else if (cmbLoaiBan.SelectedItem != null) { LoadProductsByCategoryBan(cmbLoaiBan.SelectedItem.ToString() ?? ""); } } catch { } }
-        private void cmbLoaiBan_LostFocus(object sender, RoutedEventArgs e) { try { LoadProductsByCategoryBan(cmbLoaiBan.Text ?? ""); } catch { } }
-        private void LoadProductsByCategoryBan(string cat) { using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;")) { conn.Open(); DataTable dt = new DataTable(); string sql = (string.IsNullOrEmpty(cat) || cat == "Tất cả") ? "SELECT ProductID, ProductName FROM Inventory WHERE Quantity > 0 GROUP BY ProductName" : "SELECT ProductID, ProductName FROM Inventory WHERE Category=@c AND Quantity > 0 GROUP BY ProductName"; var cmd = new SQLiteCommand(sql, conn); if (!string.IsNullOrEmpty(cat) && cat != "Tất cả") cmd.Parameters.AddWithValue("@c", cat); new SQLiteDataAdapter(cmd).Fill(dt); cmbChonSPBan.ItemsSource = dt.DefaultView; cmbChonSPBan.DisplayMemberPath = "ProductName"; cmbChonSPBan.SelectedValuePath = "ProductID"; } }
-        private void cmbChonSPBan_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (cmbChonSPBan.SelectedValue != null) { int id = Convert.ToInt32(cmbChonSPBan.SelectedValue); using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;")) { conn.Open(); string? unit = new SQLiteCommand($"SELECT Unit FROM Inventory WHERE ProductID={id}", conn).ExecuteScalar()?.ToString(); txtDonViBan.Text = unit ?? ""; } } }
-        private void TinhTienBan_TextChanged(object sender, TextChangedEventArgs e) { if (isCalculating) return; isCalculating = true; try { TextBox? tb = sender as TextBox; if (tb == txtSLBan || tb == txtThanhTien) { if (!string.IsNullOrEmpty(tb?.Text)) { double parsedRaw = ParseNumber(tb.Text); tb.Text = parsedRaw.ToString("N0"); tb.SelectionStart = tb.Text.Length; } } double sl = ParseNumber(txtSLBan.Text); double thanhTien = ParseNumber(txtThanhTien.Text); if (sl > 0 && thanhTien > 0) txtDonGiaBan.Text = (thanhTien / sl).ToString("N0"); else txtDonGiaBan.Text = "0"; } catch { } isCalculating = false; }
-        private void CapNhatSTTGioHang() { for (int i = 0; i < gioHangList.Count; i++) gioHangList[i].STT = i + 1; dgGioHang.Items.Refresh(); }
+        private void btnMoTaoDonBan_Click(object sender, RoutedEventArgs e)
+        {
+            gioHangList.Clear();
+            TinhTongDonHang();
+
+            txtSLBan.Text = "";
+            txtThanhTien.Text = "";
+            txtDonGiaBan.Text = "0";
+            txtDonViBan.Text = "";
+            cmbLoaiBan.SelectedIndex = 0;
+            dpNgayBan.SelectedDate = DateTime.Now;
+
+            OverlayBanHang.Visibility = Visibility.Visible;
+        }
+
+        private void btnHuyDonBan_Click(object sender, RoutedEventArgs e)
+        {
+            if (gioHangList.Count > 0 && MessageBox.Show("Bạn có chắc chắn muốn hủy giỏ hàng đang tạo?", "Cảnh báo", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.No)
+                return;
+
+            OverlayBanHang.Visibility = Visibility.Collapsed;
+        }
+
+        private void cmbLoaiBan_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (cmbLoaiBan.SelectedItem is DataRowView rv)
+                {
+                    LoadProductsByCategoryBan(rv["CategoryName"]?.ToString() ?? "");
+                }
+                else if (cmbLoaiBan.SelectedItem != null)
+                {
+                    LoadProductsByCategoryBan(cmbLoaiBan.SelectedItem.ToString() ?? "");
+                }
+            }
+            catch { }
+        }
+
+        private void cmbLoaiBan_LostFocus(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                LoadProductsByCategoryBan(cmbLoaiBan.Text ?? "");
+            }
+            catch { }
+        }
+
+        private void LoadProductsByCategoryBan(string cat)
+        {
+            using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+            {
+                conn.Open();
+                DataTable dt = new DataTable();
+                string sql = (string.IsNullOrEmpty(cat) || cat == "Tất cả")
+                    ? "SELECT ProductID, ProductName FROM Inventory WHERE Quantity > 0 GROUP BY ProductName"
+                    : "SELECT ProductID, ProductName FROM Inventory WHERE Category=@c AND Quantity > 0 GROUP BY ProductName";
+
+                var cmd = new SQLiteCommand(sql, conn);
+                if (!string.IsNullOrEmpty(cat) && cat != "Tất cả")
+                    cmd.Parameters.AddWithValue("@c", cat);
+
+                new SQLiteDataAdapter(cmd).Fill(dt);
+                cmbChonSPBan.ItemsSource = dt.DefaultView;
+                cmbChonSPBan.DisplayMemberPath = "ProductName";
+                cmbChonSPBan.SelectedValuePath = "ProductID";
+            }
+        }
+
+        private void cmbChonSPBan_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbChonSPBan.SelectedValue != null)
+            {
+                int id = Convert.ToInt32(cmbChonSPBan.SelectedValue);
+                using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    string? unit = new SQLiteCommand($"SELECT Unit FROM Inventory WHERE ProductID={id}", conn).ExecuteScalar()?.ToString();
+                    txtDonViBan.Text = unit ?? "";
+                }
+            }
+        }
+
+        private void TinhTienBan_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (isCalculating) return;
+            isCalculating = true;
+
+            try
+            {
+                TextBox? tb = sender as TextBox;
+                if (tb == txtSLBan || tb == txtThanhTien)
+                {
+                    if (!string.IsNullOrEmpty(tb?.Text))
+                    {
+                        double parsedRaw = ParseNumber(tb.Text);
+                        tb.Text = parsedRaw.ToString("N0");
+                        tb.SelectionStart = tb.Text.Length;
+                    }
+                }
+
+                double sl = ParseNumber(txtSLBan.Text);
+                double thanhTien = ParseNumber(txtThanhTien.Text);
+
+                if (sl > 0 && thanhTien > 0)
+                    txtDonGiaBan.Text = (thanhTien / sl).ToString("N0");
+                else
+                    txtDonGiaBan.Text = "0";
+            }
+            catch { }
+            finally { isCalculating = false; }
+        }
+
+        private void CapNhatSTTGioHang()
+        {
+            for (int i = 0; i < gioHangList.Count; i++)
+                gioHangList[i].STT = i + 1;
+
+            dgGioHang.Items.Refresh();
+        }
 
         private void btnThemVaoGio_Click(object sender, RoutedEventArgs e)
         {
@@ -260,7 +374,6 @@ namespace QuanLyBanHang
             }
 
             string ngayBan = dpNgayBan.SelectedDate.HasValue ? dpNgayBan.SelectedDate.Value.ToString("dd/MM/yyyy") : DateTime.Now.ToString("dd/MM/yyyy");
-            // Lấy thời gian chính xác để lưu vào cột EntryTime
             string entryTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
 
             using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
@@ -272,15 +385,24 @@ namespace QuanLyBanHang
                     {
                         foreach (var item in gioHangList)
                         {
-                            // 1. Cập nhật tồn kho (Đã sửa thành Parameter để chống lỗi và tăng tốc độ xử lý)
-                            using (var cmdUp = new SQLiteCommand("UPDATE Inventory SET Quantity = Quantity - @qty WHERE ProductID = @pid", conn, tr))
+                            // 1. CẬP NHẬT TỒN KHO & GIÁ VỐN (Logic: Nếu tồn về 0 thì giá vốn về 0)
+                            string sqlUpdateInventory = @"
+                        UPDATE Inventory 
+                        SET Quantity = Quantity - @qty,
+                            ImportPrice = CASE 
+                                            WHEN (Quantity - @qty) <= 0 THEN 0 
+                                            ELSE ImportPrice 
+                                          END
+                        WHERE ProductID = @pid";
+
+                            using (var cmdUp = new SQLiteCommand(sqlUpdateInventory, conn, tr))
                             {
                                 cmdUp.Parameters.AddWithValue("@qty", item.SoLuong);
                                 cmdUp.Parameters.AddWithValue("@pid", item.ProductID);
                                 cmdUp.ExecuteNonQuery();
                             }
 
-                            // 2. Thêm vào lịch sử bán hàng (Giữ nguyên cấu trúc của bạn, đảm bảo có @et cho EntryTime)
+                            // 2. Thêm vào lịch sử bán hàng (Giữ nguyên cấu trúc của bạn)
                             using (var cmdIn = new SQLiteCommand("INSERT INTO Sales (ProductID, QuantitySold, SalePrice, SaleDate, UserID, Unit, Seller, EntryTime) VALUES (@id, @q, @p, @d, 1, @u, @seller, @et)", conn, tr))
                             {
                                 cmdIn.Parameters.AddWithValue("@id", item.ProductID);
@@ -297,12 +419,12 @@ namespace QuanLyBanHang
 
                         MessageBox.Show("✅ Đã xuất bán thành công toàn bộ đơn hàng!", "Hoàn tất", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                        // 3. Xóa sạch giỏ hàng sau khi bán (Rất quan trọng, bản của bạn đang thiếu)
+                        // 3. Xóa sạch giỏ hàng và cập nhật giao diện
                         gioHangList.Clear();
-                        txtTongTienDonHang.Text = "0 VNĐ"; // Reset tổng tiền trên giao diện
+                        txtTongTienDonHang.Text = "0 VNĐ";
 
                         OverlayBanHang.Visibility = Visibility.Collapsed;
-                        LoadDuLieuKho();
+                        LoadDuLieuKho(); // Làm mới bảng kho để thấy giá vốn về 0
                         LoadLichSuBanHang();
                         UpdateThongKeData();
                     }
@@ -564,7 +686,7 @@ namespace QuanLyBanHang
             DataTable dtXuat = dtThongKeBanCuc.DefaultView.ToTable();
 
             // Gọi hàm xuất vào form mẫu
-            XuatBaoCaoRaForm(dtXuat, "Template_ThongKe.xlsx", $"DoanhThu_{monthPart}_{yearPart}");
+            XuatBaoCaoRaForm(dtXuat, "Template_ThongKeBan.xlsx", $"DoanhThu_{monthPart}_{yearPart}");
         }
 
         private void btnExportThongKeNhap_Click(object sender, RoutedEventArgs e)
@@ -609,7 +731,14 @@ namespace QuanLyBanHang
         private void btnMoTaoSanPham_Click(object sender, RoutedEventArgs e)
         {
             if (!IsAdmin()) return;
-            cmbNewLoai.Text = ""; txtNewTenSP.Text = ""; cmbNewDonVi.Text = ""; txtNewSafeLevel.Text = "0";
+
+            // Reset các ô nhập
+            cmbNewLoai.Text = "";
+            txtNewTenSP.Text = "";
+            cmbNewDonVi.Text = "";
+            txtNewSafeLevel.Text = "0";
+            txtNewMaSP.Text = ""; // Để trống mã cho đến khi chọn loại hàng
+
             OverlayTaoSanPham.Visibility = Visibility.Visible;
         }
 
@@ -784,18 +913,81 @@ namespace QuanLyBanHang
 
         private void btnHuyPopup_Click(object sender, RoutedEventArgs e) { if (!isEditMode && phieuNhapList.Count > 0 && MessageBox.Show("Hủy phiếu nhập đang tạo?", "Cảnh báo", MessageBoxButton.YesNo) == MessageBoxResult.No) return; OverlayKho.Visibility = Visibility.Collapsed; }
 
-        private void btnThem_Click(object sender, RoutedEventArgs e) { isEditMode = false; txtPopupTitle.Text = "📥 TẠO PHIẾU NHẬP KHO MỚI"; btnLuuPhieuNhap.Content = "💾 LƯU PHIẾU NHẬP"; cmbLoai.Text = ""; cmbTenSP.Text = ""; txtDonViKho.Text = ""; txtSoLuong.Text = ""; txtThanhTienNhap.Text = ""; txtGiaNhap.Text = ""; txtSafeLevel.Text = ""; dpNgayNhapKho.SelectedDate = DateTime.Now; phieuNhapList.Clear(); TinhTongPhieuNhap(); dgPhieuNhap.Visibility = Visibility.Visible; btnThemVaoPhieu.Visibility = Visibility.Visible; pnlTongTienNhap.Visibility = Visibility.Visible; OverlayKho.Visibility = Visibility.Visible; }
+        private void btnThem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!IsAdmin()) return;
+
+            // 1. Đặt mặc định ô Loại SP là "Tất cả"
+            cmbLoai.Text = "Tất cả";
+
+            // 2. Reset các ô nhập liệu khác về trống
+            cmbTenSP.Text = "";
+            txtDonViKho.Text = "";
+            txtSoLuong.Text = "";
+            txtThanhTienNhap.Text = "";
+            txtGiaNhap.Text = "0";
+            txtSafeLevel.Text = "0";
+            dpNgayNhapKho.SelectedDate = DateTime.Now;
+
+            // 3. Gọi hàm tải toàn bộ sản phẩm ngay lập tức
+            LoadProductsByCategory("Tất cả");
+
+            // Khóa ô Mức an toàn (chỉ mở khi Sửa dòng)
+            txtSafeLevel.IsReadOnly = true;
+            txtSafeLevel.Background = (System.Windows.Media.SolidColorBrush)new System.Windows.Media.BrushConverter().ConvertFrom("#E9ECEF");
+
+            txtPopupTitle.Text = "📥 TẠO PHIẾU NHẬP KHO";
+            btnLuuPhieuNhap.Content = "💾 LƯU PHIẾU NHẬP";
+            isEditMode = false;
+
+            dgPhieuNhap.Visibility = Visibility.Visible;
+            btnThemVaoPhieu.Visibility = Visibility.Visible;
+            pnlTongTienNhap.Visibility = Visibility.Visible;
+
+            OverlayKho.Visibility = Visibility.Visible;
+        }
 
         private void btnSua_Click(object sender, RoutedEventArgs e)
         {
             if (!IsAdmin()) return;
             if (dgKhoHang.SelectedItem is DataRowView r)
             {
-                isEditMode = true; editProductID = Convert.ToInt32(r["ProductID"]); txtPopupTitle.Text = "📝 CẬP THÔNG TIN NHẬP KHO"; btnLuuPhieuNhap.Content = "💾 CẬP NHẬT DÒNG"; cmbLoai.Text = r["Loại SP"].ToString(); LoadProductsByCategory(cmbLoai.Text); cmbTenSP.Text = r["Tên SP"].ToString(); txtDonViKho.Text = r["Đơn vị"].ToString(); double ton = ParseNumber(r["Tồn"].ToString() ?? "0"); double giaVon = ParseNumber(r["Giá Vốn"].ToString() ?? "0"); txtSoLuong.Text = ton.ToString("N0"); txtThanhTienNhap.Text = (ton * giaVon).ToString("N0"); txtSafeLevel.Text = r["Mức an toàn"].ToString();
-                using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;")) { conn.Open(); string dStr = new SQLiteCommand($"SELECT ImportDate FROM Inventory WHERE ProductID = {editProductID}", conn).ExecuteScalar()?.ToString() ?? ""; if (DateTime.TryParseExact(dStr, "dd/MM/yyyy HH:mm:ss", null, System.Globalization.DateTimeStyles.None, out DateTime pDate) || DateTime.TryParseExact(dStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.None, out pDate)) dpNgayNhapKho.SelectedDate = pDate; else dpNgayNhapKho.SelectedDate = DateTime.Now; }
-                dgPhieuNhap.Visibility = Visibility.Collapsed; btnThemVaoPhieu.Visibility = Visibility.Collapsed; pnlTongTienNhap.Visibility = Visibility.Collapsed; OverlayKho.Visibility = Visibility.Visible;
+                isEditMode = true;
+                editProductID = Convert.ToInt32(r["ProductID"]);
+                txtPopupTitle.Text = "📝 CẬP THÔNG TIN NHẬP KHO";
+                btnLuuPhieuNhap.Content = "💾 CẬP NHẬT DÒNG";
+                cmbLoai.Text = r["Loại SP"].ToString();
+                LoadProductsByCategory(cmbLoai.Text);
+                cmbTenSP.Text = r["Tên SP"].ToString();
+                txtDonViKho.Text = r["Đơn vị"].ToString();
+                double ton = ParseNumber(r["Tồn"].ToString() ?? "0");
+                double giaVon = ParseNumber(r["Giá Vốn"].ToString() ?? "0");
+                txtSoLuong.Text = ton.ToString("N0");
+                txtThanhTienNhap.Text = (ton * giaVon).ToString("N0");
+                txtSafeLevel.Text = r["Mức an toàn"].ToString();
+
+                using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    string dStr = new SQLiteCommand($"SELECT ImportDate FROM Inventory WHERE ProductID = {editProductID}", conn).ExecuteScalar()?.ToString() ?? "";
+                    if (DateTime.TryParseExact(dStr, "dd/MM/yyyy HH:mm:ss", null, System.Globalization.DateTimeStyles.None, out DateTime pDate) || DateTime.TryParseExact(dStr, "dd/MM/yyyy", null, System.Globalization.DateTimeStyles.None, out pDate))
+                        dpNgayNhapKho.SelectedDate = pDate;
+                    else
+                        dpNgayNhapKho.SelectedDate = DateTime.Now;
+                }
+
+                txtSafeLevel.IsReadOnly = false;
+                txtSafeLevel.Background = System.Windows.Media.Brushes.White;
+
+                dgPhieuNhap.Visibility = Visibility.Collapsed;
+                btnThemVaoPhieu.Visibility = Visibility.Collapsed;
+                pnlTongTienNhap.Visibility = Visibility.Collapsed;
+                OverlayKho.Visibility = Visibility.Visible;
             }
-            else MessageBox.Show("Chọn 1 dòng trong bảng kho để sửa!");
+            else
+            {
+                MessageBox.Show("Chọn 1 dòng trong bảng kho để sửa!");
+            }
         }
 
         private void AutoFillProductInfo()
@@ -826,8 +1018,6 @@ namespace QuanLyBanHang
 
         private void cmbLoaiKho_SelectionChanged(object sender, SelectionChangedEventArgs e) { try { if (cmbLoai.SelectedItem is DataRowView r) LoadProductsByCategory(r["CategoryName"].ToString()); else if (cmbLoai.SelectedItem != null) LoadProductsByCategory(cmbLoai.SelectedItem.ToString() ?? ""); AutoFillProductInfo(); } catch { } }
         private void cmbLoaiKho_LostFocus(object sender, RoutedEventArgs e) { try { LoadProductsByCategory(cmbLoai.Text); AutoFillProductInfo(); } catch { } }
-        private void cmbTenSPKho_SelectionChanged(object sender, SelectionChangedEventArgs e) { AutoFillProductInfo(); }
-        private void cmbTenSPKho_LostFocus(object sender, RoutedEventArgs e) { AutoFillProductInfo(); }
 
         private void CapNhatSTTPhieuNhap() { for (int i = 0; i < phieuNhapList.Count; i++) phieuNhapList[i].STT = i + 1; dgPhieuNhap.Items.Refresh(); }
 
@@ -851,14 +1041,33 @@ namespace QuanLyBanHang
             string customDate = dpNgayNhapKho.SelectedDate.HasValue ? dpNgayNhapKho.SelectedDate.Value.ToString("dd/MM/yyyy") : DateTime.Now.ToString("dd/MM/yyyy");
             string entryTime = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
 
-            using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+            using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
             {
                 conn.Open();
                 if (isEditMode)
                 {
-                    if (string.IsNullOrWhiteSpace(cmbTenSP.Text) || string.IsNullOrWhiteSpace(txtDonViKho.Text) || string.IsNullOrWhiteSpace(txtSoLuong.Text) || string.IsNullOrWhiteSpace(txtThanhTienNhap.Text)) { MessageBox.Show("Nhập đủ các trường (*)", "Cảnh báo"); return; }
+                    if (string.IsNullOrWhiteSpace(cmbTenSP.Text) || string.IsNullOrWhiteSpace(txtDonViKho.Text) || string.IsNullOrWhiteSpace(txtSoLuong.Text) || string.IsNullOrWhiteSpace(txtThanhTienNhap.Text))
+                    {
+                        MessageBox.Show("Nhập đủ các trường (*)", "Cảnh báo"); return;
+                    }
+
                     int safeLvl = string.IsNullOrWhiteSpace(txtSafeLevel.Text) ? 0 : (int)ParseNumber(txtSafeLevel.Text);
-                    using (var cmd = new SQLiteCommand("UPDATE Inventory SET Quantity=@q, ImportPrice=@p, SafeLevel=@s, Importer=@u, ImportDate=@d WHERE ProductID=@id", conn)) { cmd.Parameters.AddWithValue("@q", (int)ParseNumber(txtSoLuong.Text)); cmd.Parameters.AddWithValue("@p", ParseNumber(txtGiaNhap.Text)); cmd.Parameters.AddWithValue("@s", safeLvl); cmd.Parameters.AddWithValue("@u", currentUsername); cmd.Parameters.AddWithValue("@d", customDate); cmd.Parameters.AddWithValue("@id", editProductID); cmd.ExecuteNonQuery(); }
+                    int qty = (int)ParseNumber(txtSoLuong.Text);
+                    double price = ParseNumber(txtGiaNhap.Text);
+
+                    // LOGIC: Nếu tồn về 0 thì giá vốn ép về 0
+                    if (qty <= 0) price = 0;
+
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand("UPDATE Inventory SET Quantity=@q, ImportPrice=@p, SafeLevel=@s, Importer=@u, ImportDate=@d WHERE ProductID=@id", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@q", qty);
+                        cmd.Parameters.AddWithValue("@p", price);
+                        cmd.Parameters.AddWithValue("@s", safeLvl);
+                        cmd.Parameters.AddWithValue("@u", currentUsername);
+                        cmd.Parameters.AddWithValue("@d", customDate);
+                        cmd.Parameters.AddWithValue("@id", editProductID);
+                        cmd.ExecuteNonQuery();
+                    }
                     MessageBox.Show("✅ Đã cập nhật thành công!");
                 }
                 else
@@ -871,56 +1080,157 @@ namespace QuanLyBanHang
                             foreach (var item in phieuNhapList)
                             {
                                 int oldID = -1; int slCu = 0; double giaCu = 0;
-                                using (var cmdCheck = new SQLiteCommand("SELECT ProductID, Quantity, ImportPrice FROM Inventory WHERE ProductName=@n", conn)) { cmdCheck.Parameters.AddWithValue("@n", item.TenSP); using (var rd = cmdCheck.ExecuteReader()) { if (rd.Read()) { oldID = Convert.ToInt32(rd["ProductID"]); slCu = Convert.ToInt32(rd["Quantity"]); giaCu = Convert.ToDouble(rd["ImportPrice"]); } } }
+                                using (var cmdCheck = new System.Data.SQLite.SQLiteCommand("SELECT ProductID, Quantity, ImportPrice FROM Inventory WHERE ProductName=@n", conn))
+                                {
+                                    cmdCheck.Parameters.AddWithValue("@n", item.TenSP);
+                                    using (var rd = cmdCheck.ExecuteReader())
+                                    {
+                                        if (rd.Read()) { oldID = Convert.ToInt32(rd["ProductID"]); slCu = Convert.ToInt32(rd["Quantity"]); giaCu = Convert.ToDouble(rd["ImportPrice"]); }
+                                    }
+                                }
+
                                 if (oldID != -1)
                                 {
-                                    int tongSL = slCu + item.SoLuong; double giaTB = tongSL > 0 ? ((giaCu * slCu) + (item.GiaVon * item.SoLuong)) / tongSL : 0;
-                                    using (var cmd = new SQLiteCommand("UPDATE Inventory SET Quantity=@q, ImportPrice=@p, ImportDate=@d, Importer=@u WHERE ProductID=@id", conn)) { cmd.Parameters.AddWithValue("@q", tongSL); cmd.Parameters.AddWithValue("@p", Math.Round(giaTB, 2)); cmd.Parameters.AddWithValue("@d", customDate); cmd.Parameters.AddWithValue("@u", currentUsername); cmd.Parameters.AddWithValue("@id", oldID); cmd.ExecuteNonQuery(); }
+                                    int tongSL = slCu + item.SoLuong;
+                                    double giaTB = tongSL > 0 ? ((giaCu * slCu) + (item.GiaVon * item.SoLuong)) / tongSL : 0;
+
+                                    // Check lại một lần nữa cho chắc chắn nếu tổng tồn <= 0
+                                    if (tongSL <= 0) giaTB = 0;
+
+                                    using (var cmd = new System.Data.SQLite.SQLiteCommand("UPDATE Inventory SET Quantity=@q, ImportPrice=@p, ImportDate=@d, Importer=@u WHERE ProductID=@id", conn))
+                                    {
+                                        cmd.Parameters.AddWithValue("@q", tongSL);
+                                        cmd.Parameters.AddWithValue("@p", Math.Round(giaTB, 2));
+                                        cmd.Parameters.AddWithValue("@d", customDate);
+                                        cmd.Parameters.AddWithValue("@u", currentUsername);
+                                        cmd.Parameters.AddWithValue("@id", oldID);
+                                        cmd.ExecuteNonQuery();
+                                    }
                                 }
                                 else
                                 {
-                                    using (var cmd = new SQLiteCommand("INSERT INTO Inventory (ProductName,Category,Unit,Quantity,ImportPrice,SafeLevel,Importer,ImportDate) VALUES (@n,@c,@unit,@q,@p,@s,@u,@d)", conn)) { cmd.Parameters.AddWithValue("@n", item.TenSP); cmd.Parameters.AddWithValue("@c", item.LoaiSP); cmd.Parameters.AddWithValue("@unit", item.DonVi); cmd.Parameters.AddWithValue("@q", item.SoLuong); cmd.Parameters.AddWithValue("@p", item.GiaVon); cmd.Parameters.AddWithValue("@s", item.SafeLevel); cmd.Parameters.AddWithValue("@u", currentUsername); cmd.Parameters.AddWithValue("@d", customDate); cmd.ExecuteNonQuery(); oldID = (int)conn.LastInsertRowId; }
+                                    using (var cmd = new System.Data.SQLite.SQLiteCommand("INSERT INTO Inventory (ProductName,Category,Unit,Quantity,ImportPrice,SafeLevel,Importer,ImportDate) VALUES (@n,@c,@unit,@q,@p,@s,@u,@d)", conn))
+                                    {
+                                        cmd.Parameters.AddWithValue("@n", item.TenSP);
+                                        cmd.Parameters.AddWithValue("@c", item.LoaiSP);
+                                        cmd.Parameters.AddWithValue("@unit", item.DonVi);
+                                        cmd.Parameters.AddWithValue("@q", item.SoLuong);
+                                        cmd.Parameters.AddWithValue("@p", item.GiaVon);
+                                        cmd.Parameters.AddWithValue("@s", item.SafeLevel);
+                                        cmd.Parameters.AddWithValue("@u", currentUsername);
+                                        cmd.Parameters.AddWithValue("@d", customDate);
+                                        cmd.ExecuteNonQuery();
+                                        oldID = (int)conn.LastInsertRowId;
+                                    }
                                 }
-                                using (var logCmd = new SQLiteCommand("INSERT INTO ImportLogs (ProductID, Qty, Price, ImportDate, Importer, EntryTime) VALUES (@pid, @q, @p, @d, @u, @et)", conn)) { logCmd.Parameters.AddWithValue("@pid", oldID); logCmd.Parameters.AddWithValue("@q", item.SoLuong); logCmd.Parameters.AddWithValue("@p", item.GiaVon); logCmd.Parameters.AddWithValue("@d", customDate); logCmd.Parameters.AddWithValue("@u", currentUsername); logCmd.Parameters.AddWithValue("@et", entryTime); logCmd.ExecuteNonQuery(); }
+                                using (var logCmd = new System.Data.SQLite.SQLiteCommand("INSERT INTO ImportLogs (ProductID, Qty, Price, ImportDate, Importer, EntryTime) VALUES (@pid, @q, @p, @d, @u, @et)", conn))
+                                {
+                                    logCmd.Parameters.AddWithValue("@pid", oldID);
+                                    logCmd.Parameters.AddWithValue("@q", item.SoLuong);
+                                    logCmd.Parameters.AddWithValue("@p", item.GiaVon);
+                                    logCmd.Parameters.AddWithValue("@d", customDate);
+                                    logCmd.Parameters.AddWithValue("@u", currentUsername);
+                                    logCmd.Parameters.AddWithValue("@et", entryTime);
+                                    logCmd.ExecuteNonQuery();
+                                }
                             }
-                            tr.Commit(); MessageBox.Show("✅ Đã nhập kho thành công toàn bộ phiếu!", "Hoàn tất", MessageBoxButton.OK, MessageBoxImage.Information);
+                            tr.Commit();
+                            MessageBox.Show("✅ Đã nhập kho thành công toàn bộ phiếu!", "Hoàn tất", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                            // Xóa sạch danh sách phiếu nhập sau khi lưu thành công
+                            phieuNhapList.Clear();
                         }
                         catch (Exception ex) { tr.Rollback(); MessageBox.Show("Lỗi trong quá trình lưu: " + ex.Message, "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error); return; }
                     }
                 }
             }
-            OverlayKho.Visibility = Visibility.Collapsed; LoadDuLieuKho(); LoadCombos(); UpdateThongKeData();
+
+            // XÓA SẠCH CÁC Ô NHẬP LIỆU TRÊN GIAO DIỆN
+            cmbTenSP.SelectedIndex = -1;
+            cmbTenSP.Text = "";
+            txtDonViKho.Clear();
+            txtSoLuong.Clear();
+            txtGiaNhap.Clear();
+            txtSafeLevel.Clear();
+            txtThanhTienNhap.Text = "0";
+
+            OverlayKho.Visibility = Visibility.Collapsed;
+            LoadDuLieuKho();
+            LoadCombos();
+            UpdateThongKeData();
         }
 
         private void btnXoa_Click(object sender, RoutedEventArgs e) { if (!IsAdmin()) return; if (dgKhoHang.SelectedItem is DataRowView r) { if (MessageBox.Show("Xóa sản phẩm này?", "Cảnh báo", MessageBoxButton.YesNo) == MessageBoxResult.Yes) { RunSQL("DELETE FROM Inventory WHERE ProductID=@id", c => c.Parameters.AddWithValue("@id", r["ProductID"])); LoadDuLieuKho(); } } }
 
         private void LoadCombos()
         {
-            using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+            try
             {
-                conn.Open();
-                DataTable dt = new DataTable(); new SQLiteDataAdapter("SELECT CategoryName FROM DS_Loai", conn).Fill(dt);
-                cmbLoai.ItemsSource = dt.DefaultView; cmbLoai.DisplayMemberPath = "CategoryName";
-                cmbNewLoai.ItemsSource = dt.DefaultView; cmbNewLoai.DisplayMemberPath = "CategoryName";
+                using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
 
-                DataTable dtLoaiBan = new DataTable(); new SQLiteDataAdapter("SELECT CategoryName FROM DS_Loai", conn).Fill(dtLoaiBan); DataRow drAll = dtLoaiBan.NewRow(); drAll["CategoryName"] = "Tất cả"; dtLoaiBan.Rows.InsertAt(drAll, 0); cmbLoaiBan.ItemsSource = dtLoaiBan.DefaultView; cmbLoaiBan.DisplayMemberPath = "CategoryName"; cmbLoaiBan.SelectedIndex = 0;
+                    // 1. Tải danh sách Loại Sản Phẩm
+                    System.Data.DataTable dtLoai = new System.Data.DataTable();
+                    new System.Data.SQLite.SQLiteDataAdapter("SELECT CategoryName FROM DS_Loai ORDER BY CategoryName", conn).Fill(dtLoai);
 
-                DataTable dtDonVi = new DataTable(); new SQLiteDataAdapter("SELECT UnitName FROM DS_DonVi", conn).Fill(dtDonVi);
-                cmbNewDonVi.ItemsSource = dtDonVi.DefaultView; cmbNewDonVi.DisplayMemberPath = "UnitName";
+                    System.Collections.Generic.List<string> listLoai = new System.Collections.Generic.List<string>();
+                    listLoai.Add("Tất cả"); // Thêm tùy chọn "Tất cả" lên đầu
+
+                    foreach (System.Data.DataRow row in dtLoai.Rows)
+                    {
+                        listLoai.Add(row["CategoryName"].ToString());
+                    }
+
+                    cmbLoai.ItemsSource = listLoai;
+                    cmbLoaiBan.ItemsSource = listLoai;
+                    cmbNewLoai.ItemsSource = listLoai;
+
+                    // 2. Tải danh sách Đơn Vị Tính
+                    System.Data.DataTable dtDonVi = new System.Data.DataTable();
+                    new System.Data.SQLite.SQLiteDataAdapter("SELECT UnitName FROM DS_DonVi ORDER BY UnitName", conn).Fill(dtDonVi);
+
+                    System.Collections.Generic.List<string> listDonVi = new System.Collections.Generic.List<string>();
+                    foreach (System.Data.DataRow row in dtDonVi.Rows)
+                    {
+                        listDonVi.Add(row["UnitName"].ToString());
+                    }
+
+                    cmbNewDonVi.ItemsSource = listDonVi;
+                }
             }
+            catch { }
         }
 
         private void LoadProductsByCategory(string cat)
         {
-            using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+            try
             {
-                conn.Open(); DataTable dt = new DataTable();
-                string sql = string.IsNullOrEmpty(cat) ? "SELECT ProductName FROM DS_SanPham" : "SELECT ProductName FROM DS_SanPham WHERE CategoryName=@c";
-                var cmd = new SQLiteCommand(sql, conn);
-                if (!string.IsNullOrEmpty(cat)) cmd.Parameters.AddWithValue("@c", cat);
-                new SQLiteDataAdapter(cmd).Fill(dt);
-                cmbTenSP.ItemsSource = dt.DefaultView; cmbTenSP.DisplayMemberPath = "ProductName";
+                using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    System.Data.DataTable dt = new System.Data.DataTable();
+
+                    // Nếu cat rỗng HOẶC cat là "Tất cả", SELECT tất cả sản phẩm
+                    string sql = (string.IsNullOrWhiteSpace(cat) || cat == "Tất cả")
+                        ? "SELECT ProductID, ProductName FROM Inventory GROUP BY ProductName"
+                        : "SELECT ProductID, ProductName FROM Inventory WHERE Category=@c GROUP BY ProductName";
+
+                    var cmd = new System.Data.SQLite.SQLiteCommand(sql, conn);
+
+                    // Chỉ truyền tham số khi có chọn loại cụ thể
+                    if (!string.IsNullOrWhiteSpace(cat) && cat != "Tất cả")
+                    {
+                        cmd.Parameters.AddWithValue("@c", cat);
+                    }
+
+                    new System.Data.SQLite.SQLiteDataAdapter(cmd).Fill(dt);
+                    cmbTenSP.ItemsSource = dt.DefaultView;
+                    cmbTenSP.DisplayMemberPath = "ProductName";
+                    cmbTenSP.SelectedValuePath = "ProductID";
+                }
             }
+            catch { }
         }
 
         // 1. NÚT XUẤT BÁO CÁO KHO HÀNG (Sử dụng hàm đa năng)
@@ -1062,27 +1372,43 @@ namespace QuanLyBanHang
         // TÍNH NĂNG TÌM KIẾM TOÀN CỤC (CTRL + F) - CHUẨN EXCEL
         // ==============================================================
         // Tạo class để lưu đúng vị trí Ô chứa kết quả
-        private class SearchMatch { public object RowItem { get; set; } public string ColumnName { get; set; } = ""; }
+        // =========================================================
+        // HỆ THỐNG TÌM KIẾM (CTRL + F) TỪNG Ô GIỐNG EXCEL
+        // =========================================================
 
-        private List<SearchMatch> currentSearchMatches = new List<SearchMatch>();
+        private class SearchMatch
+        {
+            public object RowItem { get; set; }
+            public string ColumnName { get; set; } = "";
+        }
+        private System.Collections.Generic.List<SearchMatch> currentSearchMatches = new System.Collections.Generic.List<SearchMatch>();
         private int currentSearchIndex = -1;
 
-        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void Window_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.F && (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == System.Windows.Input.ModifierKeys.Control)
+            try
             {
-                SearchBox.Visibility = Visibility.Visible;
-                txtSearchInput.Focus();
-                txtSearchInput.SelectAll();
-                ExecuteSearch();
+                // Xử lý khi bấm Ctrl + F
+                if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+                {
+                    e.Handled = true;
+                    if (SearchBox != null && txtSearchInput != null)
+                    {
+                        SearchBox.Visibility = Visibility.Visible;
+                        txtSearchInput.Focus();
+                        txtSearchInput.SelectAll();
+                    }
+                }
+                // Bấm phím ESC để đóng nhanh hộp tìm kiếm
+                else if (e.Key == Key.Escape)
+                {
+                    CloseSearchBox();
+                }
             }
-            if (e.Key == System.Windows.Input.Key.Escape && SearchBox.Visibility == Visibility.Visible)
-            {
-                CloseSearchBox();
-            }
+            catch { }
         }
 
-        private DataGrid? GetActiveDataGrid()
+        private DataGrid GetActiveDataGrid()
         {
             if (tabKho.IsSelected) return dgKhoHang;
             if (tabBan.IsSelected) return dgBanHang;
@@ -1099,7 +1425,7 @@ namespace QuanLyBanHang
             currentSearchIndex = -1;
             txtSearchMatchCount.Text = "0/0";
 
-            DataGrid? dg = GetActiveDataGrid();
+            DataGrid dg = GetActiveDataGrid();
             if (dg == null || dg.ItemsSource == null || string.IsNullOrEmpty(query))
             {
                 if (dg != null) dg.SelectedCells.Clear();
@@ -1109,27 +1435,25 @@ namespace QuanLyBanHang
             // Bật chế độ chọn Cell (Ô) để giống hệt Excel
             dg.SelectionUnit = DataGridSelectionUnit.CellOrRowHeader;
 
-            // --- BÍ KÍP HIGHLIGHT: Ép màu vàng rực kể cả khi ô tìm kiếm đang được gõ ---
+            // BÍ KÍP HIGHLIGHT: Ép màu vàng rực
             Style cellStyle = new Style(typeof(DataGridCell));
             Trigger selectedTrigger = new Trigger { Property = DataGridCell.IsSelectedProperty, Value = true };
-            selectedTrigger.Setters.Add(new Setter(BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 215, 0)))); // Màu Vàng
-            selectedTrigger.Setters.Add(new Setter(ForegroundProperty, Brushes.Black)); // Chữ Đen
-            selectedTrigger.Setters.Add(new Setter(FontWeightProperty, FontWeights.Bold)); // In đậm
+            selectedTrigger.Setters.Add(new Setter(BackgroundProperty, new SolidColorBrush(Color.FromRgb(255, 215, 0))));
+            selectedTrigger.Setters.Add(new Setter(ForegroundProperty, Brushes.Black));
+            selectedTrigger.Setters.Add(new Setter(FontWeightProperty, FontWeights.Bold));
             cellStyle.Triggers.Add(selectedTrigger);
             dg.CellStyle = cellStyle;
-            // ----------------------------------------------------------------------------
 
             // Quét từng ô trong bảng
             foreach (var item in dg.ItemsSource)
             {
-                if (item is DataRowView drv)
+                if (item is System.Data.DataRowView drv)
                 {
-                    foreach (DataColumn col in drv.Row.Table.Columns)
+                    foreach (System.Data.DataColumn col in drv.Row.Table.Columns)
                     {
                         object value = drv.Row[col];
                         if (value != null && value.ToString().ToLower().Contains(query))
                         {
-                            // Lưu lại dòng và Tên cột chứa kết quả
                             currentSearchMatches.Add(new SearchMatch { RowItem = item, ColumnName = col.ColumnName });
                         }
                     }
@@ -1153,13 +1477,12 @@ namespace QuanLyBanHang
 
             txtSearchMatchCount.Text = $"{currentSearchIndex + 1}/{currentSearchMatches.Count}";
 
-            DataGrid? dg = GetActiveDataGrid();
+            DataGrid dg = GetActiveDataGrid();
             if (dg != null)
             {
                 var match = currentSearchMatches[currentSearchIndex];
 
-                // Tìm cái cột tương ứng trên giao diện (Đã mở rộng thêm tìm theo SortMemberPath để chống trượt cột)
-                DataGridColumn? targetCol = null;
+                DataGridColumn targetCol = null;
                 foreach (var c in dg.Columns)
                 {
                     if ((c.Header != null && c.Header.ToString() == match.ColumnName) || c.SortMemberPath == match.ColumnName)
@@ -1169,50 +1492,66 @@ namespace QuanLyBanHang
                     }
                 }
 
-                // Xóa vệt sáng cũ
                 dg.SelectedCells.Clear();
 
                 if (targetCol != null)
                 {
-                    // Bắt buộc cập nhật layout trước khi cuộn, nếu không WPF sẽ bị đơ không kéo thanh cuộn
                     dg.UpdateLayout();
-
-                    // Bôi xanh (vàng) đúng cái Ô đó
                     DataGridCellInfo cellInfo = new DataGridCellInfo(match.RowItem, targetCol);
                     dg.CurrentCell = cellInfo;
                     dg.SelectedCells.Add(cellInfo);
-
-                    // Tự động cuộn màn hình (cả dọc và ngang) để ô đó xuất hiện ở giữa màn hình
                     dg.ScrollIntoView(match.RowItem, targetCol);
                 }
                 else
                 {
-                    // Dự phòng: nếu không thấy cột thì bôi cả dòng
                     dg.SelectedItem = match.RowItem;
                     dg.ScrollIntoView(match.RowItem);
                 }
             }
         }
 
-        private void txtSearchInput_TextChanged(object sender, TextChangedEventArgs e) { ExecuteSearch(); }
-        private void txtSearchInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e) { if (e.Key == System.Windows.Input.Key.Enter) NavigateSearch(1); }
-        private void btnSearchNext_Click(object sender, RoutedEventArgs e) { NavigateSearch(1); }
-        private void btnSearchPrev_Click(object sender, RoutedEventArgs e) { NavigateSearch(-1); }
-        private void btnSearchClose_Click(object sender, RoutedEventArgs e) { CloseSearchBox(); }
+        // HÀM QUAN TRỌNG ĐÃ ĐƯỢC FIX LỖI "TỊT NGÒI"
+        private void txtSearchInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                // Phải có dòng này thì phần mềm mới bắt đầu quét dữ liệu khi bạn gõ chữ
+                ExecuteSearch();
+            }
+            catch { }
+        }
+
+        private void txtSearchInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            try { if (e.Key == Key.Enter) NavigateSearch(1); } catch { }
+        }
+
+        private void btnSearchNext_Click(object sender, RoutedEventArgs e)
+        {
+            try { NavigateSearch(1); } catch { }
+        }
+
+        private void btnSearchPrev_Click(object sender, RoutedEventArgs e)
+        {
+            try { NavigateSearch(-1); } catch { }
+        }
+
+        private void btnSearchClose_Click(object sender, RoutedEventArgs e)
+        {
+            try { CloseSearchBox(); } catch { }
+        }
 
         private void CloseSearchBox()
         {
-            SearchBox.Visibility = Visibility.Collapsed;
-            txtSearchInput.Clear();
-            DataGrid? dg = GetActiveDataGrid();
+            if (SearchBox != null) SearchBox.Visibility = Visibility.Collapsed;
+            if (txtSearchInput != null) txtSearchInput.Clear();
+
+            DataGrid dg = GetActiveDataGrid();
             if (dg != null)
             {
                 dg.SelectedCells.Clear();
-
-                // Tắt highlight vàng đi, trả lại giao diện bình thường
                 dg.CellStyle = null;
-
-                // Tắt Search đi thì trả lại chế độ Chọn cả dòng để ấn nút Sửa/Xóa bình thường
+                // Trả lại chế độ chọn cả dòng để dễ bấm các nút sửa/xóa
                 dg.SelectionUnit = DataGridSelectionUnit.FullRow;
             }
         }
@@ -1432,43 +1771,199 @@ namespace QuanLyBanHang
                 MessageBox.Show("Lỗi xuất Form: " + ex.Message, "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        private string GenerateAutoProductCode(string categoryName)
+        // 1. Hàm lấy 2 chữ cái đầu theo logic của bạn
+        private string RemoveVietnameseTone(string text)
         {
-            if (string.IsNullOrWhiteSpace(categoryName)) return "";
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            string result = text.ToLower();
+            result = System.Text.RegularExpressions.Regex.Replace(result, "à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ", "a");
+            result = System.Text.RegularExpressions.Regex.Replace(result, "è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ", "e");
+            result = System.Text.RegularExpressions.Regex.Replace(result, "ì|í|ị|ỉ|ĩ", "i");
+            result = System.Text.RegularExpressions.Regex.Replace(result, "ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ", "o");
+            result = System.Text.RegularExpressions.Regex.Replace(result, "ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ", "u");
+            result = System.Text.RegularExpressions.Regex.Replace(result, "ỳ|ý|ỵ|ỷ|ỹ", "y");
+            result = System.Text.RegularExpressions.Regex.Replace(result, "đ", "d");
+            return result.ToUpper();
+        }
 
-            // 1. Lấy tiền tố (tối đa 2 ký tự đầu của các từ)
-            string[] words = categoryName.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            string prefix = words[0][0].ToString();
-            if (words.Length > 1) prefix += words[1][0].ToString();
-            prefix = prefix.ToUpper();
+        private string GetPrefixLoaiSP(string loaiSP)
+        {
+            if (string.IsNullOrWhiteSpace(loaiSP)) return "SP";
+            string cleanLoaiSP = RemoveVietnameseTone(loaiSP);
+            string[] words = cleanLoaiSP.Trim().Split(new char[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length == 1)
+            {
+                if (words[0].Length >= 2) return words[0].Substring(0, 2);
+                return words[0] + "X";
+            }
+            return words[0].Substring(0, 1) + words[1].Substring(0, 1);
+        }
 
-            // 2. Tìm số thứ tự lớn nhất hiện có của tiền tố này trong DBLoad
-            int nextNumber = 1;
+        // 2. Hàm thực hiện việc truy vấn database và nhảy số -xxxx
+        private void TuDongTaoMaSP()
+        {
             try
             {
-                using (var conn = new SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                string loaiSP = cmbNewLoai.Text;
+                if (string.IsNullOrWhiteSpace(loaiSP)) return;
+
+                string prefix = GetPrefixLoaiSP(loaiSP);
+                string searchPrefix = prefix + "-"; // Kết quả sẽ có dạng TI- hoặc HA-
+
+                using (System.Data.SQLite.SQLiteConnection conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
                 {
                     conn.Open();
-                    // Lấy mã lớn nhất có bắt đầu bằng tiền tố (VD: KC-0005)
-                    string sql = $"SELECT ProductCode FROM Inventory WHERE ProductCode LIKE '{prefix}-%' ORDER BY ProductCode DESC LIMIT 1";
-                    using (var cmd = new SQLiteCommand(sql, conn))
+                    // Tìm mã lớn nhất có bắt đầu bằng tiền tố đó
+                    string query = "SELECT ProductCode FROM Inventory WHERE ProductCode LIKE @prefix ORDER BY ProductCode DESC LIMIT 1";
+                    System.Data.SQLite.SQLiteCommand cmd = new System.Data.SQLite.SQLiteCommand(query, conn);
+                    cmd.Parameters.AddWithValue("@prefix", searchPrefix + "%");
+
+                    var lastMaSP = cmd.ExecuteScalar()?.ToString();
+
+                    if (string.IsNullOrEmpty(lastMaSP))
                     {
-                        var result = cmd.ExecuteScalar();
-                        if (result != null)
+                        txtNewMaSP.Text = searchPrefix + "0001";
+                    }
+                    else
+                    {
+                        // Tách lấy phần số sau dấu gạch ngang
+                        string numberPart = lastMaSP.Substring(searchPrefix.Length);
+                        if (int.TryParse(numberPart, out int lastNumber))
                         {
-                            string lastCode = result.ToString();
-                            string numberPart = lastCode.Split('-').Last();
-                            if (int.TryParse(numberPart, out int lastNumber))
-                            {
-                                nextNumber = lastNumber + 1;
-                            }
+                            txtNewMaSP.Text = searchPrefix + (lastNumber + 1).ToString("D4");
+                        }
+                        else
+                        {
+                            txtNewMaSP.Text = searchPrefix + "0001";
                         }
                     }
                 }
             }
             catch { }
+        }
 
-            return $"{prefix}-{nextNumber:D4}"; // Trả về dạng HA-0001
+        // 3. Các sự kiện để kích hoạt việc nhảy mã
+        private void cmbNewLoai_DropDownClosed(object sender, EventArgs e) => TuDongTaoMaSP();
+        private void cmbNewLoai_LostFocus(object sender, RoutedEventArgs e) => TuDongTaoMaSP();
+        private void cmbTenSPKho_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbTenSP.SelectedValue != null)
+            {
+                int id = Convert.ToInt32(cmbTenSP.SelectedValue);
+                using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    string sql = $"SELECT Unit, ImportPrice, SafeLevel FROM Inventory WHERE ProductID={id}";
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand(sql, conn))
+                    {
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                txtDonViKho.Text = reader["Unit"]?.ToString() ?? "";
+                                txtGiaNhap.Text = reader["ImportPrice"]?.ToString() ?? "0";
+                                txtSafeLevel.Text = reader["SafeLevel"]?.ToString() ?? "0";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Cực kỳ quan trọng: Phải kiểm tra đúng sự kiện của TabControl, 
+            // vì nếu không, cứ mỗi lần bạn chọn 1 dòng trong ComboBox hay DataGrid nó cũng sẽ chạy vào đây gây lỗi.
+            if (e.OriginalSource == MainTabControl)
+            {
+                if (SearchBox != null && SearchBox.Visibility == Visibility.Visible)
+                {
+                    // Tắt hộp tìm kiếm
+                    SearchBox.Visibility = Visibility.Collapsed;
+
+                    try
+                    {
+                        // Xóa trống text để reset tìm kiếm (ẩn highlight ở các bảng)
+                        txtSearchInput.Text = "";
+                    }
+                    catch
+                    {
+                        // Bắt lỗi an toàn đề phòng DataGrid cũ chưa kịp thoát khỏi bộ nhớ
+                    }
+                }
+            }
+        }
+        private void ClearPhieuNhap()
+        {
+            // Reset ComboBox chọn sản phẩm
+            cmbTenSP.SelectedIndex = -1;
+            cmbTenSP.Text = "";
+
+            // Xóa trắng các ô TextBox thông tin
+            txtDonViKho.Clear();
+            txtGiaNhap.Clear();
+            txtSoLuong.Clear(); // Ô nhập số lượng mới
+            txtSafeLevel.Clear();
+
+            // Nếu bạn có ô tính Tổng tiền hoặc Ghi chú thì cũng clear luôn
+            // txtThanhTienNhap.Text = "0"; 
+
+            // Đưa con trỏ chuột về ô chọn Sản phẩm để bắt đầu nhập món mới luôn
+            cmbTenSP.Focus();
+        }
+        // Class phụ để hứng dữ liệu hiển thị lên bảng cảnh báo
+        // Class chuẩn 3 dữ liệu bro yêu cầu
+        public class CanhBaoItem
+        {
+            public string TenSP { get; set; }
+            public int TonKho { get; set; }
+            public string TrangThai { get; set; }
+            public string MauTrangThai { get; set; } // Dùng để tô màu cột Trạng Thái
+        }
+
+        private void KiemTraHangSapHet()
+        {
+            try
+            {
+                var listCanhBao = new System.Collections.Generic.List<CanhBaoItem>();
+
+                using (var conn = new System.Data.SQLite.SQLiteConnection($"Data Source={dbPath};Version=3;"))
+                {
+                    conn.Open();
+                    // Lấy Tên SP, Tồn kho và Mức an toàn để tính Trạng thái
+                    string sql = "SELECT ProductName, Quantity, SafeLevel FROM Inventory WHERE Quantity <= SafeLevel";
+
+                    using (var cmd = new System.Data.SQLite.SQLiteCommand(sql, conn))
+                    {
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                int ton = Convert.ToInt32(reader["Quantity"]);
+
+                                // Xử lý logic Trạng thái y như bảng Kho Hàng của bro
+                                string trangThai = (ton <= 0) ? "❌ HẾT" : "⚠️ SẮP HẾT";
+                                string mau = (ton <= 0) ? "Red" : "#f39c12"; // Đỏ nếu hết, Cam nếu sắp hết
+
+                                listCanhBao.Add(new CanhBaoItem
+                                {
+                                    TenSP = reader["ProductName"].ToString(),
+                                    TonKho = ton,
+                                    TrangThai = trangThai,
+                                    MauTrangThai = mau
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Hiện bảng nếu có hàng sắp hết
+                if (listCanhBao.Count > 0)
+                {
+                    dgHangSapHet.ItemsSource = listCanhBao;
+                    OverlayCanhBao.Visibility = Visibility.Visible;
+                }
+            }
+            catch { }
         }
     }
-}
+  }

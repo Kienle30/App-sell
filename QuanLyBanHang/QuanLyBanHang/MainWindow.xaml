@@ -138,7 +138,7 @@
             </StackPanel>
         </Border>
 
-        <TabControl x:Name="MainTabControl" Grid.Column="1" Background="Transparent" BorderThickness="0" Margin="15">
+        <TabControl x:Name="MainTabControl" Grid.Column="1" Background="Transparent" BorderThickness="0" Margin="15" SelectionChanged="MainTabControl_SelectionChanged">
             <TabControl.ItemContainerStyle>
                 <Style TargetType="TabItem">
                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -480,7 +480,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Loại SP (*):" VerticalAlignment="Center" FontWeight="Bold"/>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <ComboBox x:Name="cmbNewLoai" Width="220" Height="38" IsEditable="True" IsTextSearchEnabled="True" DropDownOpened="LockPlacement_DropDownOpened"/>
+                            <ComboBox x:Name="cmbNewLoai" Width="220" Height="38" IsEditable="True" IsTextSearchEnabled="True" DropDownOpened="LockPlacement_DropDownOpened" DropDownClosed="cmbNewLoai_DropDownClosed" LostFocus="cmbNewLoai_LostFocus"/>
                             <Button Content="+" Click="btnAddCategory_Click" Width="28" Height="38" Background="#2196F3" Foreground="White" FontWeight="Bold" Margin="5,0,0,0" ToolTip="Thêm Loại SP mới"/>
                             <Button Content="-" Click="btnRemoveCategory_Click" Width="28" Height="38" Background="#F44336" Foreground="White" FontWeight="Bold" Margin="5,0,0,0" ToolTip="Xóa Loại SP này"/>
                         </StackPanel>
@@ -677,7 +677,7 @@
                             </StackPanel>
                             <StackPanel Margin="0,0,15,10">
                                 <TextBlock Text="Sản phẩm (*):" FontWeight="Bold"/>
-                                <ComboBox x:Name="cmbTenSP" Width="180" Height="38" IsEditable="True" IsTextSearchEnabled="True" SelectionChanged="cmbTenSPKho_SelectionChanged" LostFocus="cmbTenSPKho_LostFocus" DropDownOpened="LockPlacement_DropDownOpened"/>
+                                <ComboBox x:Name="cmbTenSP" Width="180" Height="38" IsEditable="True" IsTextSearchEnabled="True" SelectionChanged="cmbTenSPKho_SelectionChanged" DropDownOpened="LockPlacement_DropDownOpened"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,15,10">
                                 <TextBlock Text="Đơn vị:" FontWeight="Bold" Foreground="#6C757D"/>
@@ -834,6 +834,77 @@
                 <Button Content="❌" Click="btnSearchClose_Click" Width="25" Height="32" Background="Transparent" BorderThickness="0" Foreground="#DC3545" FontSize="12" Cursor="Hand"/>
             </StackPanel>
         </Border>
+        <!-- Overlay Cảnh Báo Hàng Sắp Hết -->
+        <Grid x:Name="OverlayCanhBao" Visibility="Collapsed" Grid.ColumnSpan="2">
+            <!-- Lớp nền mờ phía sau -->
+            <Border Background="#80000000" MouseDown="btnDongCanhBao_MouseDown"/>
 
+            <!-- Khung thông báo chính -->
+            <Border Background="White" CornerRadius="15" Width="700" Height="450" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Tiêu đề -->
+                    <Border Background="#e74c3c" CornerRadius="15,15,0,0" Padding="15">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🔔 CẢNH BÁO HÀNG SẮP HẾT KHO" Foreground="White" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Bảng hiển thị dữ liệu -->
+                    <DataGrid x:Name="dgHangSapHet" Grid.Row="1" Margin="15" AutoGenerateColumns="False" IsReadOnly="True" 
+          Background="White" BorderBrush="#DDDDDD" GridLinesVisibility="Horizontal" RowHeight="35">
+                        <DataGrid.Columns>
+                            <!-- Cột 1: Sản Phẩm -->
+                            <DataGridTextColumn Header="Tên Sản Phẩm" Binding="{Binding TenSP}" Width="*"/>
+
+                            <!-- Cột 2: Tồn Kho -->
+                            <DataGridTextColumn Header="Tồn Kho" Binding="{Binding TonKho}" Width="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- Cột 3: Trạng thái (Tự động đổi màu) -->
+                            <DataGridTemplateColumn Header="Trạng Thái" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding TrangThai}" Foreground="{Binding MauTrangThai}" 
+                               FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Nút đóng -->
+                    <Button Grid.Row="2" Content="ĐÓNG THÔNG BÁO" Click="btnDongCanhBao_Click" 
+                    Width="150" Height="40" Margin="0,0,15,15" HorizontalAlignment="Right"
+                    Background="#95a5a6" Foreground="White" FontWeight="Bold" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" CornerRadius="5">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
